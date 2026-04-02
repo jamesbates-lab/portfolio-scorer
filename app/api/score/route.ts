@@ -101,7 +101,30 @@ export async function POST(req: NextRequest) {
     const message =
       err instanceof Error ? err.message : "An unexpected error occurred.";
 
-    // Don't expose internal details for unknown errors
+    console.error("[/api/score] Error:", message, err);
+
+    // Surface API key issues clearly
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json(
+        { error: "ANTHROPIC_API_KEY is not set. Add it to your environment variables." },
+        { status: 500 }
+      );
+    }
+
+    // Surface Anthropic auth errors
+    if (
+      message.includes("401") ||
+      message.includes("403") ||
+      message.includes("auth") ||
+      message.includes("API key") ||
+      message.includes("invalid_api_key")
+    ) {
+      return NextResponse.json(
+        { error: "Anthropic API key is invalid or unauthorized. Check your ANTHROPIC_API_KEY." },
+        { status: 500 }
+      );
+    }
+
     const isKnownError =
       err instanceof Error &&
       (message.includes("Figma") ||
@@ -109,13 +132,13 @@ export async function POST(req: NextRequest) {
         message.includes("PDF") ||
         message.includes("URL") ||
         message.includes("FIGMA_API_KEY") ||
-        message.includes("ANTHROPIC_API_KEY"));
+        message.includes("content"));
 
     return NextResponse.json(
       {
         error: isKnownError
           ? message
-          : "Something went wrong processing the portfolio. Please try again.",
+          : `Error: ${message}`,
       },
       { status: 500 }
     );
